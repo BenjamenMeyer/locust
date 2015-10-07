@@ -117,6 +117,9 @@ class HttpSession(requests.Session):
         
     
         request_meta["name"] = name or (response.history and response.history[0] or response).request.path_url
+
+        request_meta["status_code"] = response.status_code
+        request_meta["transaction"] = response.headers.get("transaction-id") or "No Transaction ID Provided"
         
         # get the length of the content, but if the argument stream is set to True, we take
         # the size from the content-length header, in order to not trigger fetching of the body
@@ -124,6 +127,14 @@ class HttpSession(requests.Session):
             request_meta["content_size"] = int(response.headers.get("content-length") or 0)
         else:
             request_meta["content_size"] = len(response.content or "")
+
+        events.request_log_transaction.fire(
+            request_type=request_meta["method"],
+            name=request_meta["name"],
+            status_code=request_meta["status_code"],
+            response_time=request_meta["response_time"],
+            transaction=request_meta["transaction"]
+        )
         
         if catch_response:
             response.locust_request_meta = request_meta

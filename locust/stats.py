@@ -21,7 +21,7 @@ class RequestStats(object):
         self.max_requests = None
         self.last_request_timestamp = None
         self.start_time = None
-    
+
     def get(self, name, method):
         """
         Retrieve a StatsEntry instance by name and method
@@ -113,6 +113,8 @@ class StatsEntry(object):
     
     last_request_timestamp = None
     """ Time of the last request for this entry """
+
+    transactions = {}
     
     def __init__(self, stats, name, method):
         self.stats = stats
@@ -131,6 +133,14 @@ class StatsEntry(object):
         self.last_request_timestamp = int(time.time())
         self.num_reqs_per_sec = {}
         self.total_content_length = 0
+        self.transactions = {}
+
+    def save_transaction(self, status_code, transaction_id):
+        if status_code in self.transactions:
+            self.transactions[status_code].append(transaction_id)
+
+        else:
+            self.transactions[status_code] = [transaction_id]
     
     def log(self, response_time, content_length):
         self.stats.num_requests += 1
@@ -251,6 +261,7 @@ class StatsEntry(object):
         self.max_response_time = max(self.max_response_time, other.max_response_time)
         self.min_response_time = min(self.min_response_time, other.min_response_time) or other.min_response_time
         self.total_content_length = self.total_content_length + other.total_content_length
+        self.transactions.update(other.transactions)
 
         if full_request_history:
             for key in other.response_times:
@@ -277,6 +288,7 @@ class StatsEntry(object):
             "total_content_length": self.total_content_length,
             "response_times": self.response_times,
             "num_reqs_per_sec": self.num_reqs_per_sec,
+            "transactions": self.transactions,
         }
     
     @classmethod
@@ -293,6 +305,7 @@ class StatsEntry(object):
             "total_content_length",
             "response_times",
             "num_reqs_per_sec",
+            "transactions",
         ]:
             setattr(obj, key, data[key])
         return obj
@@ -422,6 +435,11 @@ def on_request_failure(request_type, name, response_time, exception):
         raise StopLocust("Maximum number of requests reached")
     global_stats.get(name, request_type).log_error(exception)
 
+def on_request_log_transaction(request_type, name, status_code, response_time, transaction):
+    if global_stats.max_requests is not None and (global_stats.num_requests + global_stats.num_failures) >= global_stats.max_requests:
+        raise StopLocust("Maximum number of requests reached")
+    global_stats.get(name, request_type).save_transaction(status_code, transaction)
+
 def on_report_to_master(client_id, data):
     data["stats"] = [global_stats.entries[key].get_stripped_report() for key in global_stats.entries.iterkeys() if not (global_stats.entries[key].num_requests == 0 and global_stats.entries[key].num_failures == 0)]
     data["errors"] =  dict([(k, e.to_dict()) for k, e in global_stats.errors.iteritems()])
@@ -444,6 +462,7 @@ def on_slave_report(client_id, data):
 
 events.request_success += on_request_success
 events.request_failure += on_request_failure
+events.request_log_transaction += on_request_log_transaction
 events.report_to_master += on_report_to_master
 events.slave_report += on_slave_report
 
