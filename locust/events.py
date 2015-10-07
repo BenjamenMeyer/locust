@@ -50,6 +50,21 @@ Event is fired with the following arguments:
 * *exception*: Exception instance that was thrown
 """
 
+
+request_log_transaction = EventHook()
+"""
+*request_log_transaction* is fired when a request returns whether successful or failed
+
+Event is fired with the following arguments:
+
+* *request_type*: Request type method used
+* *name*: Path to the URL that was called (or override name if it was used in the call to the client)
+* *status_code*: Response status code
+* *response_time*: Response time in milliseconds
+* *response_length*: Content-length of the response
+* *transaction*: x-transaction-id header field value
+"""
+
 locust_error = EventHook()
 """
 *locust_error* is fired when an exception occurs inside the execution of a Locust class.

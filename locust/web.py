@@ -197,6 +197,28 @@ def exceptions_csv():
     response.headers["Content-disposition"] = disposition
     return response
 
+@app.route("/transactions/csv")
+def transactions_csv():
+    data = StringIO()
+    writer = csv.writer(data)
+    writer.writerow(["Type","URI","Status Code","Transaction-ID"])
+
+    stats = runners.locust_runner.request_stats
+    for key in sorted(stats):
+        r = stats[key]
+        for k, v in r.transactions.iteritems():
+            for v2 in v:
+                writer.writerow([r.method, r.name, k, v2])
+
+    data.seek(0)
+    response = make_response(data.read())
+    file_name = "transactions_{0}.csv".format(time())
+    disposition = "attachment;filename={0}".format(file_name)
+    response.headers["Content-type"] = "text/csv"
+    response.headers["Content-disposition"] = disposition
+    return response
+
+
 def start(locust, options):
     wsgi.WSGIServer((options.web_host, options.port), app, log=None).serve_forever()
 
